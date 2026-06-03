@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Activity, BarChart2, TrendingUp, TrendingDown, RefreshCw, Search, Loader, PieChart, LayoutDashboard, Lightbulb, FileText, BarChart3 } from 'lucide-react';
-import { useForecast, useMarketSummary } from '../hooks/useApi';
+import { ChevronLeft, Activity, BarChart2, TrendingUp, TrendingDown, RefreshCw, Search, Loader, PieChart, LayoutDashboard, Lightbulb, FileText, BarChart3, Users, Building2, Wallet, ArrowUpDown } from 'lucide-react';
+import { useForecast, useMarketSummary, useHolders } from '../hooks/useApi';
 import PriceChart from '../components/PriceChart';
 import { formatCurrency, formatPercent } from '../utils/formatting';
 import axios from 'axios';
@@ -219,6 +219,7 @@ const AnalyticsOverview = () => {
 const AnalyticsDetail = ({ ticker }) => {
   const navigate = useNavigate();
   const { data, isLoading } = useForecast(ticker, 7, '1y');
+  const { data: holdersData, isLoading: holdersLoading } = useHolders(ticker);
   const [liveQuote, setLiveQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
@@ -475,6 +476,168 @@ const AnalyticsDetail = ({ ticker }) => {
             </div>
           </div>
         </div>
+
+        {/* STOCK HOLDERS */}
+        {holdersLoading ? (
+          <div className="flex items-center justify-center py-12 mb-12">
+            <Loader className="animate-spin text-indigo-600" size={32} />
+            <span className="ml-3 text-[#45464D]">Loading holder data...</span>
+          </div>
+        ) : holdersData && (
+          <div className="mb-12">
+            <div className="bg-white border-2 border-[#E0E3E5] rounded-xl overflow-hidden shadow-sm mb-6">
+              <div className="bg-[#F2F4F6] p-6 border-b border-[#E0E3E5] flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <Users className="text-indigo-600" size={24} />
+                  <h3 className="font-bold tracking-widest text-[#45464D]">STOCK HOLDERS</h3>
+                </div>
+                {holdersData.last_fetched_at && (
+                  <span className="text-sm text-[#76777D]">
+                    Data as of: {new Date(holdersData.last_fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* MAJOR HOLDERS */}
+              <div className="bg-white border-2 border-[#E0E3E5] rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-[#F2F4F6] p-6 border-b border-[#E0E3E5] flex items-center gap-3">
+                  <PieChart className="text-indigo-600" size={20} />
+                  <h4 className="font-bold tracking-widest text-[#45464D] text-sm">MAJOR HOLDERS</h4>
+                </div>
+                {holdersData.major_holders ? (
+                  <div className="divide-y divide-[#E0E3E5]">
+                    <div className="flex justify-between items-center p-5 px-6">
+                      <span className="text-[#45464D]">Insiders</span>
+                      <span className="font-bold text-lg">{holdersData.major_holders.insiders_pct?.toFixed(2) || 'N/A'}%</span>
+                    </div>
+                    <div className="flex justify-between items-center p-5 px-6">
+                      <span className="text-[#45464D]">Institutions</span>
+                      <span className="font-bold text-lg">{holdersData.major_holders.institutions_pct?.toFixed(2) || 'N/A'}%</span>
+                    </div>
+                    <div className="flex justify-between items-center p-5 px-6">
+                      <span className="text-[#45464D]">Number of Institutions</span>
+                      <span className="font-bold text-lg">{holdersData.major_holders.institutions_count?.toLocaleString() || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-5 px-6">
+                      <span className="text-[#45464D]">Float Held by Institutions</span>
+                      <span className="font-bold text-lg">{holdersData.major_holders.float_held_pct?.toFixed(2) || 'N/A'}%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-[#76777D]">No data available</div>
+                )}
+              </div>
+
+              {/* OWNERSHIP CHANGES */}
+              <div className="bg-white border-2 border-[#E0E3E5] rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-[#F2F4F6] p-6 border-b border-[#E0E3E5] flex items-center gap-3">
+                  <ArrowUpDown className="text-indigo-600" size={20} />
+                  <h4 className="font-bold tracking-widest text-[#45464D] text-sm">OWNERSHIP CHANGES</h4>
+                </div>
+                {holdersData.ownership_changes?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-[#F7F9FB] text-[#45464D] font-bold text-xs tracking-widest uppercase border-b border-[#E0E3E5]">
+                        <tr>
+                          <th className="p-4">Holder</th>
+                          <th className="p-4 text-right">Shares</th>
+                          <th className="p-4 text-right">Change</th>
+                          <th className="p-4 text-right">Change %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {holdersData.ownership_changes.map((item, i) => (
+                          <tr key={i}>
+                            <td className="p-4 font-medium text-sm truncate max-w-[200px]">{item.holder}</td>
+                            <td className="p-4 text-right text-sm">{item.shares?.toLocaleString()}</td>
+                            <td className={`p-4 text-right text-sm font-bold ${item.change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {item.change >= 0 ? '+' : ''}{item.change?.toLocaleString()}
+                            </td>
+                            <td className={`p-4 text-right text-sm font-bold ${item.change_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {item.change_pct >= 0 ? '+' : ''}{item.change_pct?.toFixed(2)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-[#76777D]">No data available</div>
+                )}
+              </div>
+
+              {/* INSTITUTIONAL HOLDERS */}
+              <div className="bg-white border-2 border-[#E0E3E5] rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-[#F2F4F6] p-6 border-b border-[#E0E3E5] flex items-center gap-3">
+                  <Building2 className="text-indigo-600" size={20} />
+                  <h4 className="font-bold tracking-widest text-[#45464D] text-sm">INSTITUTIONAL HOLDERS</h4>
+                </div>
+                {holdersData.institutional_holders?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-[#F7F9FB] text-[#45464D] font-bold text-xs tracking-widest uppercase border-b border-[#E0E3E5]">
+                        <tr>
+                          <th className="p-4">Holder</th>
+                          <th className="p-4 text-right">Shares</th>
+                          <th className="p-4 text-right">% Out</th>
+                          <th className="p-4 text-right">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {holdersData.institutional_holders.map((item, i) => (
+                          <tr key={i}>
+                            <td className="p-4 font-medium text-sm truncate max-w-[200px]">{item.holder}</td>
+                            <td className="p-4 text-right text-sm">{item.shares?.toLocaleString()}</td>
+                            <td className="p-4 text-right text-sm">{item.pct_out?.toFixed(2)}%</td>
+                            <td className="p-4 text-right text-sm font-bold">${item.value?.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-[#76777D]">No data available</div>
+                )}
+              </div>
+
+              {/* MUTUAL FUND HOLDERS */}
+              <div className="bg-white border-2 border-[#E0E3E5] rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-[#F2F4F6] p-6 border-b border-[#E0E3E5] flex items-center gap-3">
+                  <Wallet className="text-indigo-600" size={20} />
+                  <h4 className="font-bold tracking-widest text-[#45464D] text-sm">MUTUAL FUND HOLDERS</h4>
+                </div>
+                {holdersData.mutual_fund_holders?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-[#F7F9FB] text-[#45464D] font-bold text-xs tracking-widest uppercase border-b border-[#E0E3E5]">
+                        <tr>
+                          <th className="p-4">Holder</th>
+                          <th className="p-4 text-right">Shares</th>
+                          <th className="p-4 text-right">% Out</th>
+                          <th className="p-4 text-right">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {holdersData.mutual_fund_holders.map((item, i) => (
+                          <tr key={i}>
+                            <td className="p-4 font-medium text-sm truncate max-w-[200px]">{item.holder}</td>
+                            <td className="p-4 text-right text-sm">{item.shares?.toLocaleString()}</td>
+                            <td className="p-4 text-right text-sm">{item.pct_out?.toFixed(2)}%</td>
+                            <td className="p-4 text-right text-sm font-bold">${item.value?.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-[#76777D]">No data available</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

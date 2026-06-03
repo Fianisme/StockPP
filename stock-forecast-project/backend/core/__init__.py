@@ -7,6 +7,7 @@ from .retraining_orchestrator import RetrainingOrchestrator
 from .model_scheduler import ModelScheduler
 from .insight_engine import InsightEngine
 from .supabase_client import SupabaseClient
+from .scrapping.holder_scraper import HolderScraper
 
 __all__ = [
     'LSTMModel',
@@ -17,4 +18,5 @@ __all__ = [
     'ModelScheduler',
     'InsightEngine',
     'SupabaseClient',
+    'HolderScraper',
 ]

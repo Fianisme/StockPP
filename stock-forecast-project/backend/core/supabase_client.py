@@ -734,3 +734,57 @@ def download_model_file(ticker: str, file_name: str, bucket_name: str = "models"
     except Exception as e:
         logger.error(f"Error downloading model file: {str(e)}")
         raise
+
+
+HOLDER_CACHE_TTL_HOURS = 24
+
+
+def get_cached_holders(ticker: str) -> Optional[dict]:
+    """Get cached holder data if fresh (within TTL)."""
+    try:
+        client = SupabaseClient.get_client()
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=HOLDER_CACHE_TTL_HOURS)).isoformat()
+
+        result = client.table("stock_holders").select("*").eq(
+            "ticker", ticker.upper()
+        ).gte("last_fetched_at", cutoff).limit(1).execute()
+
+        return result.data[0] if result.data else None
+    except Exception as e:
+        logger.error(f"Error fetching cached holders for {ticker}: {e}")
+        return None
+
+
+def upsert_holder_data(ticker: str, data: dict) -> dict:
+    """Insert or update holder data for a ticker."""
+    try:
+        client = SupabaseClient.get_client()
+        ensure_ticker_exists(ticker)
+
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "ticker": ticker.upper(),
+            "major_holders": data.get("major_holders"),
+            "institutional_holders": data.get("institutional_holders"),
+            "mutual_fund_holders": data.get("mutual_fund_holders"),
+            "ownership_changes": data.get("ownership_changes"),
+            "last_fetched_at": now,
+            "updated_at": now,
+        }
+
+        result = client.table("stock_holders").upsert(
+            payload, on_conflict="ticker"
+        ).execute()
+
+        logger.info(f"Upserted holder data for {ticker}")
+        return result.data[0] if result.data else {}
+    except Exception as e:
+        logger.error(f"Error upserting holder data for {ticker}: {e}")
+        raise
+
+
+def get_holder_data(ticker: str) -> Optional[dict]:
+    """Get holder data. Returns cached data if fresh, otherwise None."""
+    return get_cached_holders(ticker)

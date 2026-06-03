@@ -399,6 +399,65 @@ async def get_historical_data(
         logger.error(f"Error getting historical data: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@router.get("/holders/{ticker}")
+async def get_stock_holders(ticker: str = Path(..., description="Stock ticker symbol")):
+    """
+    Get stock holder data (institutional, mutual fund, major holders, ownership changes).
+    Uses Supabase cache with 24-hour TTL.
+    """
+    try:
+        ticker_upper = ticker.upper()
+
+        from core.scrapping.holder_scraper import HolderScraper
+
+        # Try cache first
+        cached = None
+        try:
+            from core.supabase_client import get_holder_data, upsert_holder_data
+            cached = get_holder_data(ticker_upper)
+        except Exception:
+            pass
+
+        if cached:
+            return {
+                "ticker": ticker_upper,
+                "major_holders": cached.get("major_holders"),
+                "institutional_holders": cached.get("institutional_holders", []),
+                "mutual_fund_holders": cached.get("mutual_fund_holders", []),
+                "ownership_changes": cached.get("ownership_changes", []),
+                "cached": True,
+                "last_fetched_at": cached.get("last_fetched_at"),
+                "timestamp": datetime.now().isoformat()
+            }
+
+        scraper = HolderScraper()
+        fresh_data = scraper.get_all_holder_data(ticker_upper)
+
+        # Try to cache, but don't fail if table doesn't exist
+        try:
+            upsert_holder_data(ticker_upper, fresh_data)
+        except Exception as e:
+            logger.warning(f"Could not cache holder data (table may not exist): {e}")
+
+        return {
+            "ticker": ticker_upper,
+            "major_holders": fresh_data.get("major_holders"),
+            "institutional_holders": fresh_data.get("institutional_holders", []),
+            "mutual_fund_holders": fresh_data.get("mutual_fund_holders", []),
+            "ownership_changes": fresh_data.get("ownership_changes", []),
+            "cached": False,
+            "last_fetched_at": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching holders for {ticker}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error fetching holder data")
+
 @router.get("/metrics/{ticker}")
 async def get_model_metrics(ticker: str = Path(..., description="Stock ticker symbol")):
     """

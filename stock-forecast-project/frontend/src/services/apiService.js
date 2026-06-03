@@ -118,6 +118,15 @@ export const getQuote = async (ticker) => {
   }
 };
 
+export const getHolders = async (ticker) => {
+  try {
+    const response = await apiClient.get(`/holders/${ticker.toUpperCase()}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { error: 'Failed to fetch holder data' };
+  }
+};
+
 export const getReportsHistory = async (ticker = null, limit = 50, status = null) => {
   try {
     const params = { limit };

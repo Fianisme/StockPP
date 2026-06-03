@@ -133,6 +133,17 @@ export const useQuote = (ticker, enabled = true) => {
   });
 };
 
+export const useHolders = (ticker, enabled = true) => {
+  return useQuery({
+    queryKey: ['holders', ticker],
+    queryFn: () => apiService.getHolders(ticker),
+    enabled: enabled && !!ticker,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+};
+
 export const useModelsStatus = (enabled = true) => {
   return useQuery({
     queryKey: ['modelsStatus'],
